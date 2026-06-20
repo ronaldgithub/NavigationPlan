@@ -59,6 +59,26 @@ public partial class MainWindow : Window
         n.ZoomToBox(new MRect(sw.x, sw.y, ne.x, ne.y));
     }
 
+    private void PrintButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Capture the current map view as a bitmap
+        var dpi = 96.0;
+        var w   = (int)MapControl.ActualWidth;
+        var h   = (int)MapControl.ActualHeight;
+        System.Windows.Media.Imaging.BitmapSource? mapBitmap = null;
+
+        if (w > 0 && h > 0)
+        {
+            var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                w, h, dpi, dpi, System.Windows.Media.PixelFormats.Pbgra32);
+            rtb.Render(MapControl);
+            rtb.Freeze();
+            mapBitmap = rtb;
+        }
+
+        ViewModel.PrintWithMap(mapBitmap);
+    }
+
     private void OpenButton_Click(object sender, RoutedEventArgs e)
     {
         var waypoints = ViewModel.Open();

@@ -173,7 +173,7 @@
                         <Button Content="Open…"     x:Name="OpenButton" Click="OpenButton_Click" Margin="0,0,4,4"
                                 Background="#FF3F3F3F" BorderBrush="#FF3F3F3F"/>
                         <Button Content="Save .txt" Command="{Binding SaveCommand}"       Margin="0,0,0,4"/>
-                        <Button Content="Print"     Command="{Binding PrintCommand}"      Margin="0,0,4,0"/>
+                        <Button Content="Print"     Click="PrintButton_Click"             Margin="0,0,4,0"/>
                     </UniformGrid>
 
                 </StackPanel>

@@ -111,11 +111,10 @@ public partial class MainViewModel : ObservableObject
         if (fixed1 != null) Waypoints.Add(fixed1);
     }
 
-    [RelayCommand]
-    private void Print()
+    public void PrintWithMap(System.Windows.Media.Imaging.BitmapSource? mapImage)
     {
         if (!TryBuildFlightPlan(out var plan)) return;
-        PrintService.Print(NavLegs.ToList(), plan);
+        PrintService.Print(NavLegs.ToList(), plan, mapImage);
     }
 
     [RelayCommand]
@@ -253,9 +252,6 @@ public partial class MainViewModel : ObservableObject
         NavLegs.Clear();
         return waypoints.Count > 0 ? waypoints : null;
     }
-
-    [RelayCommand]
-    private void OpenCommand_Unused() { } // placeholder — Open is called from code-behind
 
     private bool TryBuildFlightPlan(out FlightPlan plan)
     {
