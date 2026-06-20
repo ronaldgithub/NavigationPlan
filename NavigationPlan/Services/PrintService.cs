@@ -81,7 +81,8 @@ public static class PrintService
             Child = new TextBlock
             {
                 Text = $"Navigation Chart  —  {plan.From}  →  {plan.To}" +
-                       (string.IsNullOrWhiteSpace(plan.Alternate) ? "" : $"  (Alt: {plan.Alternate})"),
+                       (string.IsNullOrWhiteSpace(plan.Alternate) ? "" : $"  (Alt: {plan.Alternate})") +
+                       $"     Wind: {plan.WindDirection:000}° / {plan.WindSpeed} kt     QNH: {plan.Qnh} hPa",
                 FontSize = 13,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(Color.FromRgb(0, 68, 170))
@@ -149,8 +150,8 @@ public static class PrintService
 
     private static Grid BuildNavTable(List<NavLeg> legs)
     {
-        string[] headers = { "Waypoint", "Level", "TAS", "TT", "TH", "WCA", "MH", "GS", "Dist", "Time", "ETA", "ATA", "Remarks" };
-        double[]  widths  = { 130,        45,      40,    40,   40,   40,    40,   40,   45,     40,     45,    45,    0 };
+        string[] headers = { "Waypoint", "Freq", "Level", "TAS", "TT", "TH", "WCA", "MH", "GS", "Dist", "Time", "ETA", "ATA", "Remarks" };
+        double[]  widths  = { 115,        65,     45,      40,    40,   40,   40,    40,   40,   45,     40,     45,    45,    0 };
 
         var grid = new Grid();
         foreach (var w in widths)
@@ -178,6 +179,7 @@ public static class PrintService
                 : new[]
                 {
                     leg.WaypointName,
+                    leg.Frequency,
                     leg.Level,
                     leg.Tas > 0 ? leg.Tas.ToString() : string.Empty,
                     r > 0 ? leg.TrueTrack.ToString("000")       : string.Empty,

@@ -22,9 +22,10 @@ NavigationPlan/
     │   ├── NavigationCalculator.cs  # all aviation math (static, pure)
     │   └── PrintService.cs          # WPF FixedDocument print (A4 landscape)
     ├── ViewModels/
-    │   └── MainViewModel.cs     # all state, commands, save/open logic
+    │   └── MainViewModel.cs     # all state, commands, save/open/RT logic
     ├── Views/
-    │   └── InputDialog.xaml     # waypoint name prompt dialog
+    │   ├── InputDialog.xaml     # waypoint name prompt dialog
+    │   └── RtCallsDialog.xaml   # scrollable RT calls display dialog
     ├── Themes/
     │   └── DarkTheme.xaml       # dark colour palette ResourceDictionary
     ├── MainWindow.xaml          # 3-panel layout (left inputs | map | bottom DataGrid)
@@ -40,9 +41,11 @@ NavigationPlan/
 - **Bottom panel** (250 px, full width): `DataGrid` with nav plan legs
 
 ## Nav Plan Table Columns
-`Waypoint | Level | TAS | TT | TH | WCA | MH | GS | Dist | Time | ETA | ATA | Remarks`
+`Waypoint | Freq | Level | TAS | TT | TH | WCA | MH | GS | Dist | Time | ETA | ATA | Remarks`
 
-ATA and Remarks are user-editable in-flight.
+- **Freq** — radio frequency per waypoint (editable)
+- **ATA** and **Remarks** are user-editable in-flight
+- Freq, ATA, Remarks are preserved across Calculate and saved/restored via `[NOTES]` section in the `.txt` file
 
 ## Key Calculations (`NavigationCalculator.cs`)
 - **TT** (True Track): forward azimuth via `atan2`
@@ -62,12 +65,23 @@ ATA and Remarks are user-editable in-flight.
 - Route drawn as blue polyline via `GeometryFeature` + `VectorStyle`
 
 ## Save / Open
-- **Save .txt**: saves form fields, waypoints (with coordinates), and the full nav plan table
-- **Open…**: parses a saved `.txt` and restores all fields + waypoints on the map
+- **Save .txt**: saves form fields, waypoints (with coordinates), `[NOTES]` section (Freq/ATA/Remarks per waypoint), and the full nav plan table
+- **Open…**: parses a saved `.txt` and restores all fields + waypoints + notes on the map
+- Notes are stored in `_pendingNotes` (dict populated by `Open()`, consumed by `Calculate()`)
 - Saved files (`NavPlan_*.txt`) are excluded from git via `.gitignore`
 
 ## Print
-`PrintService.Print` builds a WPF `FixedDocument` (A4 landscape, 1122×794 px) replicating the NavPlan.jpg form layout. Elements are measured and arranged before printing.
+- **Page 1 — Nav plan form**: `PrintService.Print` builds a WPF `FixedDocument` (A4 landscape, 1122×794 px) replicating the NavPlan.jpg form layout
+- **Page 2 — Navigation chart** (optional, toggled by "Print chart" checkbox): auto-zooms map to fit all waypoints (`MRect.Grow(10000)`), captures via `RenderTargetBitmap`, then restores original viewport. Title includes Wind and QNH.
+- Mapsui viewport save/restore uses `nav.Viewport.CenterX/CenterY/Resolution` and `nav.CenterOnAndZoomTo()`
+
+## RT Calls (`MainViewModel.BuildRtCalls`)
+Generates a full ATC radio telephony script for the flight, structured in three sections:
+1. **Pre-Departure** — Teuge Info (119.700): radio check, departure info request, take-off clearance, frequency change
+2. **En Route** — Dutch Mil Info (132.350): initial contact with ETA, position reports at each intermediate waypoint, freq change approaching destination
+3. **Arrival** — destination radio: inbound call, circuit join, finals, vacated
+
+Displayed in `RtCallsDialog` (scrollable, monospace, Copy to Clipboard button). Called from `RtButton_Click` in code-behind.
 
 ## Build & Run
 ```
@@ -75,3 +89,9 @@ cd NavigationPlan
 dotnet run
 ```
 Or open `NavigationPlan.slnx` in Visual Studio 2022+.
+
+## Mapsui 4.1.9 API Notes
+- Viewport properties: `CenterX`, `CenterY`, `Resolution`, `Rotation`, `Width`, `Height` (no `.Center` MPoint)
+- Navigator: `CenterOnAndZoomTo(MPoint, double)`, `ZoomToBox(MRect)` — no `NavigateTo`
+- `MRect.Grow(n)` expands by `n` metres on all four sides
+- `RenderTargetBitmap` captures at WPF logical pixels (96 DPI), not physical pixels — true 1:1 map capture is not achievable

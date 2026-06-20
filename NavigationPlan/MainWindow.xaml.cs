@@ -59,24 +59,51 @@ public partial class MainWindow : Window
         n.ZoomToBox(new MRect(sw.x, sw.y, ne.x, ne.y));
     }
 
-    private void PrintButton_Click(object sender, RoutedEventArgs e)
+    private async void PrintButton_Click(object sender, RoutedEventArgs e)
     {
-        // Capture the current map view as a bitmap
-        var dpi = 96.0;
-        var w   = (int)MapControl.ActualWidth;
-        var h   = (int)MapControl.ActualHeight;
         System.Windows.Media.Imaging.BitmapSource? mapBitmap = null;
 
-        if (w > 0 && h > 0)
+        if (PrintChartCheckBox.IsChecked == true)
         {
-            var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
-                w, h, dpi, dpi, System.Windows.Media.PixelFormats.Pbgra32);
-            rtb.Render(MapControl);
-            rtb.Freeze();
-            mapBitmap = rtb;
+            var nav             = MapControl.Map.Navigator;
+            var savedCenterX    = nav.Viewport.CenterX;
+            var savedCenterY    = nav.Viewport.CenterY;
+            var savedResolution = nav.Viewport.Resolution;
+
+            var waypoints = ViewModel.Waypoints.ToList();
+            if (waypoints.Count >= 2)
+            {
+                var xs = waypoints.Select(w => SphericalMercator.FromLonLat(w.Longitude, w.Latitude).x);
+                var ys = waypoints.Select(w => SphericalMercator.FromLonLat(w.Longitude, w.Latitude).y);
+                var box = new MRect(xs.Min(), ys.Min(), xs.Max(), ys.Max()).Grow(10000);
+                nav.ZoomToBox(box);
+                await Task.Delay(700);
+            }
+
+            var dpi = 96.0;
+            var w   = (int)MapControl.ActualWidth;
+            var h   = (int)MapControl.ActualHeight;
+            if (w > 0 && h > 0)
+            {
+                var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    w, h, dpi, dpi, System.Windows.Media.PixelFormats.Pbgra32);
+                rtb.Render(MapControl);
+                rtb.Freeze();
+                mapBitmap = rtb;
+            }
+
+            nav.CenterOnAndZoomTo(new MPoint(savedCenterX, savedCenterY), savedResolution);
         }
 
         ViewModel.PrintWithMap(mapBitmap);
+    }
+
+    private void RtButton_Click(object sender, RoutedEventArgs e)
+    {
+        var result = ViewModel.BuildRtCalls();
+        if (result == null) return;
+        var dlg = new RtCallsDialog(result.Value.Title, result.Value.Text) { Owner = this };
+        dlg.ShowDialog();
     }
 
     private void OpenButton_Click(object sender, RoutedEventArgs e)

@@ -37,6 +37,9 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<Waypoint> Waypoints { get; } = new();
     public ObservableCollection<NavLeg> NavLegs { get; } = new();
 
+    // Notes loaded from file; applied on next Calculate() then cleared
+    private Dictionary<string, (string Frequency, string Ata, string Remarks)> _pendingNotes = new();
+
     public MainViewModel()
     {
         Waypoints.Add(new Waypoint
@@ -82,10 +85,27 @@ public partial class MainViewModel : ObservableObject
     {
         if (!TryBuildFlightPlan(out var plan)) return;
 
+        // Preserve user-entered values across recalculate; merge with any notes loaded from file
+        var saved = NavLegs.ToDictionary(
+            l => l.WaypointName,
+            l => (l.Frequency, l.Ata, l.Remarks));
+
+        foreach (var (name, note) in _pendingNotes)
+            saved[name] = note;
+        _pendingNotes.Clear();
+
         var legs = NavigationCalculator.Calculate(Waypoints.ToList(), plan);
         NavLegs.Clear();
         foreach (var leg in legs)
+        {
+            if (saved.TryGetValue(leg.WaypointName, out var s))
+            {
+                leg.Frequency = s.Frequency;
+                leg.Ata       = s.Ata;
+                leg.Remarks   = s.Remarks;
+            }
             NavLegs.Add(leg);
+        }
     }
 
     [RelayCommand]
@@ -162,9 +182,16 @@ public partial class MainViewModel : ObservableObject
         sb.AppendLine("[/WAYPOINTS]");
         sb.AppendLine();
 
+        // Notes (frequency, ATA, remarks per waypoint) — parsed on Open()
+        sb.AppendLine("[NOTES]");
+        foreach (var leg in NavLegs)
+            sb.AppendLine($"{leg.WaypointName}|{leg.Frequency}|{leg.Ata}|{leg.Remarks}");
+        sb.AppendLine("[/NOTES]");
+        sb.AppendLine();
+
         // Nav plan table
-        sb.AppendLine($"{"Waypoint",-14} {"Lvl",5} {"TAS",4} {"TT",4} {"TH",4} {"WCA",4} {"MH",4} {"GS",4} {"Dist",6} {"Time",5} {"ETA",5} {"ATA",5}  Remarks");
-        sb.AppendLine(new string('-', 92));
+        sb.AppendLine($"{"Waypoint",-14} {"Freq",8} {"Lvl",5} {"TAS",4} {"TT",4} {"TH",4} {"WCA",4} {"MH",4} {"GS",4} {"Dist",6} {"Time",5} {"ETA",5} {"ATA",5}  Remarks");
+        sb.AppendLine(new string('-', 104));
 
         foreach (var leg in NavLegs)
         {
@@ -176,10 +203,10 @@ public partial class MainViewModel : ObservableObject
             string dist = idx > 0 ? leg.DistanceNm.ToString("F1")        : "---";
             string time = idx > 0 ? leg.TimeMin.ToString()               : "---";
 
-            sb.AppendLine($"{leg.WaypointName,-14} {leg.Level,5} {leg.Tas,4} {tt,4} {th,4} {wca,4} {mh,4} {leg.GroundSpeed,4} {dist,6} {time,5} {leg.Eta,5} {leg.Ata,5}  {leg.Remarks}");
+            sb.AppendLine($"{leg.WaypointName,-14} {leg.Frequency,8} {leg.Level,5} {leg.Tas,4} {tt,4} {th,4} {wca,4} {mh,4} {leg.GroundSpeed,4} {dist,6} {time,5} {leg.Eta,5} {leg.Ata,5}  {leg.Remarks}");
         }
 
-        sb.AppendLine(new string('-', 92));
+        sb.AppendLine(new string('-', 104));
         sb.AppendLine($"\nSaved: {DateTime.Now:yyyy-MM-dd HH:mm}");
 
         File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
@@ -249,8 +276,148 @@ public partial class MainViewModel : ObservableObject
             });
         }
 
+        // Parse notes section so Calculate() can restore frequency/ATA/remarks
+        _pendingNotes.Clear();
+        bool inNotes = false;
+        foreach (var line in lines)
+        {
+            if (line.Trim() == "[NOTES]")  { inNotes = true;  continue; }
+            if (line.Trim() == "[/NOTES]") { inNotes = false; continue; }
+            if (!inNotes) continue;
+            var parts = line.Split('|');
+            if (parts.Length >= 4)
+                _pendingNotes[parts[0]] = (parts[1], parts[2], parts[3]);
+        }
+
         NavLegs.Clear();
         return waypoints.Count > 0 ? waypoints : null;
+    }
+
+    public (string Title, string Text)? BuildRtCalls()
+    {
+        if (NavLegs.Count == 0)
+        {
+            MessageBox.Show("Calculate the navigation plan first.", "RT Calls",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return null;
+        }
+
+        var cs   = string.IsNullOrWhiteSpace(Registration) ? "[CALLSIGN]" : Registration.ToUpper();
+        var type = string.IsNullOrWhiteSpace(AircraftType) ? "[TYPE]"     : AircraftType;
+        var from = From.ToUpper();
+        var to   = string.IsNullOrWhiteSpace(To) ? "[DEST]" : To.ToUpper();
+        var legs = NavLegs.ToList();
+
+        const string TeugeFrq    = "119.700";
+        const string DutchMilFrq = "132.350";
+
+        var sb = new StringBuilder();
+        void L(string s = "")  { sb.AppendLine(s); }
+        void Y(string s)       { sb.AppendLine("  YOU:  " + s); }
+        void YC(string s)      { sb.AppendLine("          " + s); }
+        void A(string s)       { sb.AppendLine("  ATC:  " + s); }
+        void AC(string s)      { sb.AppendLine("          " + s); }
+
+        // ── Header ──────────────────────────────────────────────────────────
+        sb.AppendLine(new string('=', 62));
+        sb.AppendLine($"  RT CALLS  —  {cs}  —  {from}  →  {to}");
+        sb.AppendLine($"  {type}  |  Level {Level} ft  |  Wind {WindDirection}°/{WindSpeed} kt  |  QNH {Qnh}");
+        sb.AppendLine(new string('=', 62));
+        L();
+
+        // ── 1. Pre-Departure ─────────────────────────────────────────────────
+        sb.AppendLine($"── 1.  PRE-DEPARTURE  —  {from}  INFO  ({TeugeFrq})  " + new string('─', 10));
+        L();
+        Y($"Teuge Radio, {cs}, radio check on {TeugeFrq}");
+        A($"{cs}, Teuge Radio, reading you 5");
+        L();
+        Y($"Teuge Radio, {cs}, {type}, at the apron,");
+        YC($"request departure information,");
+        YC($"VFR to {to}, level {Level} ft, request QNH");
+        A($"{cs}, Teuge Radio, runway [XX], QNH {Qnh},");
+        AC($"wind {WindDirection}°/{WindSpeed} kt, information [A/B/C],");
+        AC($"report ready for departure");
+        L();
+        Y($"Ready for departure runway [XX], {cs}");
+        A($"{cs}, cleared take-off runway [XX], wind {WindDirection}°/{WindSpeed} kt");
+        L();
+        Y($"Teuge Radio, {cs}, airborne, changing to Dutch Mil Info");
+        A($"{cs}, Teuge Radio, frequency change approved, good day");
+        L();
+
+        // ── 2. En Route — Dutch Mil Info ─────────────────────────────────────
+        sb.AppendLine($"── 2.  EN ROUTE  —  DUTCH MIL INFO  ({DutchMilFrq})  " + new string('─', 8));
+        L();
+
+        Y($"Dutch Mil Info, {cs}, {type},");
+        YC($"departed {from} at {legs[0].Eta}, destination {to},");
+        YC($"level {Level} ft QNH {Qnh}, VFR,");
+        YC($"estimating {legs[1].WaypointName} at {legs[1].Eta}");
+        A($"{cs}, Dutch Mil Info, pass your message");
+        L();
+
+        // Position reports at intermediate waypoints
+        for (int i = 1; i < legs.Count - 1; i++)
+        {
+            var wp   = legs[i].WaypointName;
+            var eta  = legs[i].Eta;
+            bool last = (i == legs.Count - 2);
+
+            if (last)
+            {
+                Y($"Dutch Mil Info, {cs},");
+                YC($"overhead {wp} at {eta},");
+                YC($"approaching {to}, changing to {to} frequency");
+                A($"{cs}, Dutch Mil Info, freecall, good day");
+            }
+            else
+            {
+                var nextWp  = legs[i + 1].WaypointName;
+                var nextEta = legs[i + 1].Eta;
+                Y($"Dutch Mil Info, {cs},");
+                YC($"overhead {wp} at {eta}, level {Level} ft,");
+                YC($"estimating {nextWp} at {nextEta}");
+                A($"{cs}, Dutch Mil Info, roger");
+            }
+            L();
+        }
+
+        // No intermediate waypoints — just the freq change
+        if (legs.Count == 2)
+        {
+            Y($"Dutch Mil Info, {cs}, approaching {to}, changing frequency");
+            A($"{cs}, Dutch Mil Info, freecall, good day");
+            L();
+        }
+
+        // ── 3. Arrival ───────────────────────────────────────────────────────
+        sb.AppendLine($"── 3.  ARRIVAL  —  {to} RADIO  " + new string('─', 22));
+        L();
+
+        var prevWp = legs[^2].WaypointName;
+        Y($"{to} Radio, {cs}, {type},");
+        YC($"{prevWp}, inbound, {Level} ft,");
+        YC($"request airfield information and QNH");
+        A($"{cs}, {to} Radio, runway [XX], QNH [QNH],");
+        AC($"wind [DIR]/[SPD], join [circuit leg]");
+        L();
+        Y($"Joining [circuit leg], {cs}");
+        A($"{cs}, roger");
+        L();
+        Y($"Finals runway [XX], {cs}");
+        A($"{cs}, cleared to land runway [XX], wind [DIR]/[SPD]");
+        L();
+        Y($"Clear of the runway, {cs}");
+        A($"{cs}, taxi to [parking], good day");
+        L();
+
+        sb.AppendLine(new string('─', 62));
+        sb.AppendLine($"  [XX] = active runway at time of flight");
+        sb.AppendLine($"  Teuge Info: {TeugeFrq}  |  Dutch Mil Info North: {DutchMilFrq}");
+        sb.AppendLine(new string('─', 62));
+
+        var title = $"RT Calls — {cs} — {from} → {to}";
+        return (title, sb.ToString());
     }
 
     private bool TryBuildFlightPlan(out FlightPlan plan)

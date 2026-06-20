@@ -16,5 +16,6 @@ public partial class NavLeg : ObservableObject
     [ObservableProperty] private int timeMin;
     [ObservableProperty] private string eta = string.Empty;
     [ObservableProperty] private string ata = string.Empty;
+    [ObservableProperty] private string frequency = string.Empty;
     [ObservableProperty] private string remarks = string.Empty;
 }

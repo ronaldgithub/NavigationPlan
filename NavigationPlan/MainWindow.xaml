@@ -24,6 +24,7 @@
                       FontSize="11">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Waypoint" Binding="{Binding WaypointName}" Width="*" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Freq"     Binding="{Binding Frequency}"    Width="70"/>
                     <DataGridTextColumn Header="Level"    Binding="{Binding Level}"        Width="55" IsReadOnly="True"/>
                     <DataGridTextColumn Header="TAS"      Binding="{Binding Tas}"          Width="45" IsReadOnly="True"/>
                     <DataGridTextColumn Header="TT"       Binding="{Binding TrueTrack, StringFormat=000}"   Width="45" IsReadOnly="True"/>
@@ -173,8 +174,16 @@
                         <Button Content="Open…"     x:Name="OpenButton" Click="OpenButton_Click" Margin="0,0,4,4"
                                 Background="#FF3F3F3F" BorderBrush="#FF3F3F3F"/>
                         <Button Content="Save .txt" Command="{Binding SaveCommand}"       Margin="0,0,0,4"/>
-                        <Button Content="Print"     Click="PrintButton_Click"             Margin="0,0,4,0"/>
                     </UniformGrid>
+                    <DockPanel Margin="0,0,0,4">
+                        <CheckBox x:Name="PrintChartCheckBox" Content="Print chart"
+                                  IsChecked="True" VerticalAlignment="Center"
+                                  Foreground="{StaticResource TextBrush}"
+                                  Margin="0,0,8,0" DockPanel.Dock="Left"/>
+                        <Button Content="Print" Click="PrintButton_Click"/>
+                    </DockPanel>
+                    <Button Content="RT Calls" Click="RtButton_Click" Margin="0,0,0,4"
+                            ToolTip="Show radio telephony calls for this flight"/>
 
                 </StackPanel>
             </ScrollViewer>
