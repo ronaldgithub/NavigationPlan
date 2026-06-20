@@ -1,0 +1,181 @@
+using System.Windows;
+using System.Windows.Input;
+using Mapsui;
+using Mapsui.Layers;
+using Mapsui.Nts;
+using Mapsui.Projections;
+using Mapsui.Styles;
+using Mapsui.Tiling;
+using Mapsui.UI.Wpf;
+using NetTopologySuite.Geometries;
+using NavigationPlan.Models;
+using NavigationPlan.ViewModels;
+using NavigationPlan.Views;
+
+namespace NavigationPlan;
+
+public partial class MainWindow : Window
+{
+    private WritableLayer _pinLayer = new();
+    private WritableLayer _routeLayer = new();
+    private readonly Dictionary<Waypoint, PointFeature> _pinFeatures = new();
+    private MainViewModel ViewModel => (MainViewModel)DataContext;
+
+    public MainWindow()
+    {
+        DataContext = new MainViewModel();
+        InitializeComponent();
+        // Set Home before WPF layout triggers Mapsui's SizeChanged internally
+        MapControl.Map.Home = n => ZoomToNetherlands(n);
+    }
+
+    private void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        SetupMap();
+        ViewModel.Waypoints.CollectionChanged += (_, _) => RefreshMapLayers();
+        // Zoom explicitly after all layers are added (overrides any world-level default)
+        ZoomToNetherlands(MapControl.Map.Navigator);
+    }
+
+    private void SetupMap()
+    {
+        MapControl.Map.Layers.Add(OpenStreetMap.CreateTileLayer());
+
+        _routeLayer = new WritableLayer { Name = "Route" };
+        _pinLayer   = new WritableLayer { Name = "Waypoints", IsMapInfoLayer = true };
+        MapControl.Map.Layers.Add(_routeLayer);
+        MapControl.Map.Layers.Add(_pinLayer);
+
+        MapControl.Info += MapControl_Info;
+        MapControl.MouseRightButtonUp += MapControl_MouseRightButtonUp;
+
+        RefreshMapLayers();
+    }
+
+    private static void ZoomToNetherlands(Mapsui.Navigator n)
+    {
+        var sw = SphericalMercator.FromLonLat(2.8, 50.4);
+        var ne = SphericalMercator.FromLonLat(8.0, 53.8);
+        n.ZoomToBox(new MRect(sw.x, sw.y, ne.x, ne.y));
+    }
+
+    private void OpenButton_Click(object sender, RoutedEventArgs e)
+    {
+        var waypoints = ViewModel.Open();
+        if (waypoints == null) return;
+        ViewModel.LoadWaypoints(waypoints);
+        // Map auto-refreshes via CollectionChanged; also zoom to route extent
+        if (waypoints.Count >= 2)
+        {
+            var xs = waypoints.Select(w => SphericalMercator.FromLonLat(w.Longitude, w.Latitude).x);
+            var ys = waypoints.Select(w => SphericalMercator.FromLonLat(w.Longitude, w.Latitude).y);
+            var box = new MRect(xs.Min(), ys.Min(), xs.Max(), ys.Max()).Grow(50000);
+            MapControl.Map.Navigator.ZoomToBox(box);
+        }
+    }
+
+    private void MapControl_Info(object? sender, MapInfoEventArgs e)
+    {
+        // Only handle clicks on empty map (no feature hit)
+        if (e.MapInfo?.Feature != null) return;
+        if (e.MapInfo?.WorldPosition == null) return;
+
+        var world  = e.MapInfo.WorldPosition;
+        var lonLat = SphericalMercator.ToLonLat(world.X, world.Y);
+
+        var dialog = new InputDialog { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+
+        ViewModel.AddWaypoint(lonLat.lat, lonLat.lon, dialog.WaypointName);
+    }
+
+    private void MapControl_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        var screenPos = e.GetPosition(MapControl);
+        var mapInfo   = MapControl.GetMapInfo(new MPoint(screenPos.X, screenPos.Y));
+        if (mapInfo?.Feature == null) return;
+
+        var wp = mapInfo.Feature["WaypointRef"] as Waypoint;
+        if (wp == null || wp.IsFixed) return;
+
+        var result = MessageBox.Show(
+            $"Remove waypoint \"{wp.Name}\"?",
+            "Remove Waypoint",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes)
+            ViewModel.RemoveWaypoint(wp);
+    }
+
+    private void RefreshMapLayers()
+    {
+        _pinLayer.Clear();
+        _pinFeatures.Clear();
+
+        foreach (var wp in ViewModel.Waypoints)
+        {
+            var p = SphericalMercator.FromLonLat(wp.Longitude, wp.Latitude);
+            var feature = new PointFeature(new MPoint(p.x, p.y));
+            feature["WaypointRef"] = wp;
+
+            var fillColor = wp.IsFixed
+                ? new Mapsui.Styles.Color(0, 120, 212)
+                : new Mapsui.Styles.Color(220, 60, 60);
+
+            feature.Styles.Add(new SymbolStyle
+            {
+                Fill       = new Mapsui.Styles.Brush(fillColor),
+                Outline    = new Mapsui.Styles.Pen(Mapsui.Styles.Color.White, 1.5f),
+                SymbolScale = 0.6,
+                SymbolType  = SymbolType.Ellipse
+            });
+            feature.Styles.Add(new LabelStyle
+            {
+                Text = wp.Index.ToString(),
+                ForeColor = Mapsui.Styles.Color.White,
+                BackColor = new Mapsui.Styles.Brush(Mapsui.Styles.Color.Transparent),
+                HorizontalAlignment = LabelStyle.HorizontalAlignmentEnum.Center,
+                VerticalAlignment   = LabelStyle.VerticalAlignmentEnum.Center,
+                Font = new Mapsui.Styles.Font { Size = 10, Bold = true }
+            });
+            // Name label below the pin
+            feature.Styles.Add(new LabelStyle
+            {
+                Text = wp.Name,
+                ForeColor = Mapsui.Styles.Color.White,
+                BackColor = new Mapsui.Styles.Brush(new Mapsui.Styles.Color(0, 0, 0, 160)),
+                HorizontalAlignment = LabelStyle.HorizontalAlignmentEnum.Center,
+                VerticalAlignment   = LabelStyle.VerticalAlignmentEnum.Top,
+                Offset = new Offset(0, 18),
+                Font   = new Mapsui.Styles.Font { Size = 9 }
+            });
+
+            _pinFeatures[wp] = feature;
+            _pinLayer.Add(feature);
+        }
+
+        _pinLayer.DataHasChanged();
+
+        // Route polyline
+        _routeLayer.Clear();
+        if (ViewModel.Waypoints.Count >= 2)
+        {
+            var coords = ViewModel.Waypoints
+                .Select(wp => SphericalMercator.FromLonLat(wp.Longitude, wp.Latitude))
+                .Select(p => new Coordinate(p.x, p.y))
+                .ToArray();
+
+            var factory     = new GeometryFactory();
+            var lineString  = factory.CreateLineString(coords);
+            var routeFeature = new GeometryFeature(lineString);
+            routeFeature.Styles.Add(new VectorStyle
+            {
+                Line = new Mapsui.Styles.Pen(new Mapsui.Styles.Color(0, 120, 212), 2f)
+            });
+            _routeLayer.Add(routeFeature);
+        }
+
+        _routeLayer.DataHasChanged();
+    }
+}
