@@ -6,7 +6,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>NavigationPlan.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="NavigationPlan.ico"/>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Mapsui.Wpf" Version="4.1.9" />

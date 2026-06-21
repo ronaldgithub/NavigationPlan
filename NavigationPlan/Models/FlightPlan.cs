@@ -6,7 +6,7 @@ public class FlightPlan
     public string AircraftType { get; set; } = string.Empty;
     public string Pilot { get; set; } = string.Empty;
 
-    public string From { get; set; } = "EHTE";
+    public string From { get; set; } = "EDLS";
     public string To { get; set; } = string.Empty;
     public string Alternate { get; set; } = string.Empty;
     public TimeOnly DepartureTime { get; set; } = new TimeOnly(10, 0);

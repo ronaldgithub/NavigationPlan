@@ -19,7 +19,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string pilot = string.Empty;
 
     // Flight info
-    [ObservableProperty] private string from = "EHTE";
+    [ObservableProperty] private string from = "EDLS";
     [ObservableProperty] private string to = string.Empty;
     [ObservableProperty] private string alternate = string.Empty;
     [ObservableProperty] private string departureTime = "10:00";
@@ -44,9 +44,9 @@ public partial class MainViewModel : ObservableObject
     {
         Waypoints.Add(new Waypoint
         {
-            Name = "EHTE",
-            Latitude = 52.2442,
-            Longitude = 6.0464,
+            Name = "EDLS",
+            Latitude = 51.995833,
+            Longitude = 6.840556,
             IsFixed = true,
             Index = 1
         });
@@ -70,6 +70,20 @@ public partial class MainViewModel : ObservableObject
         Waypoints.Remove(wp);
         for (int i = 0; i < Waypoints.Count; i++)
             Waypoints[i].Index = i + 1;
+    }
+
+    public void SetDeparture(string name, double lat, double lon)
+    {
+        var existing = Waypoints.FirstOrDefault(w => w.IsFixed);
+        var newWp = new Waypoint { Name = name, Latitude = lat, Longitude = lon, IsFixed = true, Index = 1 };
+        if (existing != null)
+            Waypoints[Waypoints.IndexOf(existing)] = newWp;
+        else
+        {
+            Waypoints.Insert(0, newWp);
+            for (int i = 0; i < Waypoints.Count; i++) Waypoints[i].Index = i + 1;
+        }
+        From = name;
     }
 
     // Called from code-behind after Open loads waypoints (map will auto-refresh via CollectionChanged)
@@ -114,7 +128,7 @@ public partial class MainViewModel : ObservableObject
         Registration = string.Empty;
         AircraftType = string.Empty;
         Pilot = string.Empty;
-        From = "EHTE";
+        From = Waypoints.FirstOrDefault(w => w.IsFixed)?.Name ?? string.Empty;
         To = string.Empty;
         Alternate = string.Empty;
         DepartureTime = "10:00";
@@ -308,7 +322,8 @@ public partial class MainViewModel : ObservableObject
         var to   = string.IsNullOrWhiteSpace(To) ? "[DEST]" : To.ToUpper();
         var legs = NavLegs.ToList();
 
-        const string TeugeFrq    = "119.700";
+        var depFrq = legs.Count > 0 && !string.IsNullOrWhiteSpace(legs[0].Frequency)
+            ? legs[0].Frequency : "[DEP FREQ]";
         const string DutchMilFrq = "132.350";
 
         var sb = new StringBuilder();
@@ -326,23 +341,23 @@ public partial class MainViewModel : ObservableObject
         L();
 
         // ── 1. Pre-Departure ─────────────────────────────────────────────────
-        sb.AppendLine($"── 1.  PRE-DEPARTURE  —  {from}  INFO  ({TeugeFrq})  " + new string('─', 10));
+        sb.AppendLine($"── 1.  PRE-DEPARTURE  —  {from}  RADIO  ({depFrq})  " + new string('─', 10));
         L();
-        Y($"Teuge Radio, {cs}, radio check on {TeugeFrq}");
-        A($"{cs}, Teuge Radio, reading you 5");
+        Y($"{from} Radio, {cs}, radio check on {depFrq}");
+        A($"{cs}, {from} Radio, reading you 5");
         L();
-        Y($"Teuge Radio, {cs}, {type}, at the apron,");
+        Y($"{from} Radio, {cs}, {type}, at the apron,");
         YC($"request departure information,");
         YC($"VFR to {to}, level {Level} ft, request QNH");
-        A($"{cs}, Teuge Radio, runway [XX], QNH {Qnh},");
+        A($"{cs}, {from} Radio, runway [XX], QNH {Qnh},");
         AC($"wind {WindDirection}°/{WindSpeed} kt, information [A/B/C],");
         AC($"report ready for departure");
         L();
         Y($"Ready for departure runway [XX], {cs}");
         A($"{cs}, cleared take-off runway [XX], wind {WindDirection}°/{WindSpeed} kt");
         L();
-        Y($"Teuge Radio, {cs}, airborne, changing to Dutch Mil Info");
-        A($"{cs}, Teuge Radio, frequency change approved, good day");
+        Y($"{from} Radio, {cs}, airborne, changing to Dutch Mil Info");
+        A($"{cs}, {from} Radio, frequency change approved, good day");
         L();
 
         // ── 2. En Route — Dutch Mil Info ─────────────────────────────────────
@@ -413,7 +428,7 @@ public partial class MainViewModel : ObservableObject
 
         sb.AppendLine(new string('─', 62));
         sb.AppendLine($"  [XX] = active runway at time of flight");
-        sb.AppendLine($"  Teuge Info: {TeugeFrq}  |  Dutch Mil Info North: {DutchMilFrq}");
+        sb.AppendLine($"  {from} Radio: {depFrq}  |  Dutch Mil Info North: {DutchMilFrq}");
         sb.AppendLine(new string('─', 62));
 
         var title = $"RT Calls — {cs} — {from} → {to}";
