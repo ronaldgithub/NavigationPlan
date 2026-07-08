@@ -2,7 +2,7 @@
 
 A WPF .NET 8 desktop application for VFR flight navigation planning, built for student pilots at **Flight School Teuge** (EHTE), the Netherlands.
 
-![App icon — compass rose with airplane](NavigationPlan/NavigationPlan_preview.png)
+![Navigation Plan — route from EHTE with interactive map and calculated nav log](pic/screenshot.jpg)
 
 ## Features
 
