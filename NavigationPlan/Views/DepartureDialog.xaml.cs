@@ -9,9 +9,10 @@ public partial class DepartureDialog : Window
     public double Latitude    { get; private set; }
     public double Longitude   { get; private set; }
 
-    public DepartureDialog(string name, double lat, double lon)
+    public DepartureDialog(string name, double lat, double lon, string title = "Set Departure Airport")
     {
         InitializeComponent();
+        Title = title;
         NameBox.Text = name;
         LatBox.Text  = lat.ToString("F6", CultureInfo.InvariantCulture);
         LonBox.Text  = lon.ToString("F6", CultureInfo.InvariantCulture);

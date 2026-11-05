@@ -15,31 +15,53 @@
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0">
-            <DataGrid x:Name="NavPlanGrid"
-                      ItemsSource="{Binding NavLegs}"
-                      AutoGenerateColumns="False"
-                      IsReadOnly="False"
-                      CanUserAddRows="False"
-                      CanUserDeleteRows="False"
-                      SelectionMode="Single"
-                      FontSize="11">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Waypoint" Binding="{Binding WaypointName}" Width="*" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="Freq"     Binding="{Binding Frequency}"    Width="70"/>
-                    <DataGridTextColumn Header="Level"    Binding="{Binding Level}"        Width="55" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="TAS"      Binding="{Binding Tas}"          Width="45" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="TT"       Binding="{Binding TrueTrack, StringFormat=000}"   Width="45" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="TH"       Binding="{Binding TrueHeading, StringFormat=000}" Width="45" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="WCA"      Binding="{Binding Wca}"           Width="45" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="MH"       Binding="{Binding MagneticHeading, StringFormat=000}" Width="45" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="GS"       Binding="{Binding GroundSpeed}"  Width="45" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="Dist"     Binding="{Binding DistanceNm, StringFormat=F1}"  Width="50" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="Time"     Binding="{Binding TimeMin}"      Width="45" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="ETA"      Binding="{Binding Eta}"          Width="50" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="ATA"      Binding="{Binding Ata}"          Width="50"/>
-                    <DataGridTextColumn Header="Remarks"  Binding="{Binding Remarks}"      Width="*"/>
-                </DataGrid.Columns>
-            </DataGrid>
+            <DockPanel>
+                <Border DockPanel.Dock="Bottom"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,1,0,0"
+                        Padding="10,4">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Total Distance:" FontWeight="Bold"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock Text="{Binding TotalDistanceNm, StringFormat={}{0:F1} nm}"
+                                   Margin="6,0,20,0"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock Text="Total Time:" FontWeight="Bold"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock Text="{Binding TotalTimeMin, StringFormat={}{0} min}"
+                                   Margin="6,0,0,0"
+                                   Foreground="{StaticResource TextBrush}"/>
+                    </StackPanel>
+                </Border>
+                <DataGrid x:Name="NavPlanGrid"
+                          ItemsSource="{Binding NavLegs}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          SelectionMode="Single"
+                          FontSize="11">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Waypoint" Binding="{Binding WaypointName}" Width="*" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Freq"     Binding="{Binding Frequency}"    Width="70"/>
+                        <DataGridTextColumn Header="Level"    Binding="{Binding Level}"        Width="55" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="TAS"      Binding="{Binding Tas}"          Width="45" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="TT"       Binding="{Binding TrueTrack, StringFormat=000}"   Width="45" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="WCA"      Binding="{Binding Wca}"           Width="45" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="TH"       Binding="{Binding TrueHeading, StringFormat=000}" Width="45" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="VAR"      Binding="{Binding Variation}"    Width="45" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="MH"       Binding="{Binding MagneticHeading, StringFormat=000}" Width="45" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="DEV"      Binding="{Binding Deviation}"    Width="45" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="CH"       Binding="{Binding CompassHeading, StringFormat=000}" Width="45" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="GS"       Binding="{Binding GroundSpeed}"  Width="45" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Dist"     Binding="{Binding DistanceNm, StringFormat=F1}"  Width="50" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Time"     Binding="{Binding TimeMin}"      Width="45" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="ETA"      Binding="{Binding Eta}"          Width="50" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="ATA"      Binding="{Binding Ata}"          Width="50"/>
+                        <DataGridTextColumn Header="Remarks"  Binding="{Binding Remarks}"      Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
         </Border>
 
         <!-- ====== Top: Left Panel + Map ====== -->
@@ -146,6 +168,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Label Grid.Row="0" Grid.Column="0" Content="TAS (kt):"/>
                             <TextBox Grid.Row="0" Grid.Column="1" Margin="0,2,0,2"
@@ -159,6 +182,11 @@
                             <TextBox Grid.Row="2" Grid.Column="1" Margin="0,2,0,2"
                                      Text="{Binding MagneticVariation, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      ToolTip="Magnetic variation. Positive = East. Netherlands ≈ 2.5"/>
+                            <Label Grid.Row="3" Grid.Column="0" Content="Dev (°E):"
+                                   ToolTip="Compass deviation — positive = East. Default 0 (MH = CH)"/>
+                            <TextBox Grid.Row="3" Grid.Column="1" Margin="0,2,0,2"
+                                     Text="{Binding Deviation, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Compass deviation. Positive = East. Default 0 (MH = CH)"/>
                         </Grid>
                     </GroupBox>
 
@@ -180,10 +208,17 @@
                     </DockPanel>
                     <DockPanel x:Name="AirportResultPanel" Margin="0,2,0,8"
                                Visibility="Collapsed">
-                        <Button x:Name="SetDepFromFindButton" DockPanel.Dock="Right"
-                                Content="Set as Dep." FontSize="10" Padding="4,1"
-                                Background="#FF3F3F3F" BorderBrush="#FF3F3F3F"
-                                Click="SetDepFromFind_Click"/>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button x:Name="SetDepFromFindButton"
+                                    Content="Set as Dep." FontSize="10" Padding="4,1"
+                                    Background="#FF3F3F3F" BorderBrush="#FF3F3F3F"
+                                    Click="SetDepFromFind_Click"/>
+                            <Button x:Name="SetDestFromFindButton"
+                                    Content="Set as Dest." FontSize="10" Padding="4,1"
+                                    Background="#FF3F3F3F" BorderBrush="#FF3F3F3F"
+                                    Margin="4,0,0,0"
+                                    Click="SetDestFromFind_Click"/>
+                        </StackPanel>
                         <TextBlock x:Name="AirportResultLabel"
                                    FontSize="10" Foreground="{StaticResource SubtleTextBrush}"
                                    TextWrapping="Wrap" VerticalAlignment="Center"
@@ -220,7 +255,12 @@
                             ToolTip="Show radio telephony calls for this flight"/>
                     <Button Content="Dep. Airport…" Click="DepAirportButton_Click" Margin="0,0,0,4"
                             Background="#FF3F3F3F" BorderBrush="#FF3F3F3F"
-                            ToolTip="Change the fixed departure airport (name and coordinates)"/>
+                            ToolTip="Change the fixed departure airport (name and coordinates)"
+                            Visibility="Collapsed"/>
+                    <Button Content="Dest. Airport…" Click="DestAirportButton_Click" Margin="0,0,0,4"
+                            Background="#FF3F3F3F" BorderBrush="#FF3F3F3F"
+                            ToolTip="Change the fixed destination airport (name and coordinates)"
+                            Visibility="Collapsed"/>
 
                 </StackPanel>
             </ScrollViewer>

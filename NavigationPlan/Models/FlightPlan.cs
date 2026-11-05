@@ -6,7 +6,7 @@ public class FlightPlan
     public string AircraftType { get; set; } = string.Empty;
     public string Pilot { get; set; } = string.Empty;
 
-    public string From { get; set; } = "EDLS";
+    public string From { get; set; } = "EHTE";
     public string To { get; set; } = string.Empty;
     public string Alternate { get; set; } = string.Empty;
     public TimeOnly DepartureTime { get; set; } = new TimeOnly(10, 0);
@@ -18,4 +18,5 @@ public class FlightPlan
     public int TAS { get; set; } = 100;
     public string Level { get; set; } = "1000";
     public double MagneticVariation { get; set; } = 2.5;
+    public double Deviation { get; set; } = 0;
 }

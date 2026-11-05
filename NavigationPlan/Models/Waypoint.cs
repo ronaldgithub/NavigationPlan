@@ -6,5 +6,6 @@ public class Waypoint
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public bool IsFixed { get; set; }
+    public bool IsDestination { get; set; }
     public int Index { get; set; }
 }

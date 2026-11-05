@@ -150,8 +150,8 @@ public static class PrintService
 
     private static Grid BuildNavTable(List<NavLeg> legs)
     {
-        string[] headers = { "Waypoint", "Freq", "Level", "TAS", "TT", "TH", "WCA", "MH", "GS", "Dist", "Time", "ETA", "ATA", "Remarks" };
-        double[]  widths  = { 115,        65,     45,      40,    40,   40,   40,    40,   40,   45,     40,     45,    45,    0 };
+        string[] headers = { "Waypoint", "Freq", "Level", "TAS", "TT", "WCA", "TH", "VAR", "MH", "DEV", "CH", "GS", "Dist", "Time", "ETA", "ATA", "Remarks" };
+        double[]  widths  = { 115,        65,     45,      40,    40,   40,    40,   40,    40,   40,    40,   40,   45,     40,     45,    45,    0 };
 
         var grid = new Grid();
         foreach (var w in widths)
@@ -183,9 +183,12 @@ public static class PrintService
                     leg.Level,
                     leg.Tas > 0 ? leg.Tas.ToString() : string.Empty,
                     r > 0 ? leg.TrueTrack.ToString("000")       : string.Empty,
-                    r > 0 ? leg.TrueHeading.ToString("000")     : string.Empty,
                     r > 0 ? leg.Wca                             : string.Empty,
+                    r > 0 ? leg.TrueHeading.ToString("000")     : string.Empty,
+                    r > 0 ? leg.Variation                       : string.Empty,
                     r > 0 ? leg.MagneticHeading.ToString("000") : string.Empty,
+                    r > 0 ? leg.Deviation                       : string.Empty,
+                    r > 0 ? leg.CompassHeading.ToString("000")  : string.Empty,
                     leg.GroundSpeed > 0 ? leg.GroundSpeed.ToString() : string.Empty,
                     r > 0 ? leg.DistanceNm.ToString("F1")       : string.Empty,
                     r > 0 ? leg.TimeMin.ToString()              : string.Empty,

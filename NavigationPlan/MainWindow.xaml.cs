@@ -184,6 +184,7 @@ public partial class MainWindow : Window
         AirportResultLabel.Text = ap.Name;
         AirportResultPanel.Visibility = System.Windows.Visibility.Visible;
         SetDepFromFindButton.Visibility = System.Windows.Visibility.Visible;
+        SetDestFromFindButton.Visibility = System.Windows.Visibility.Visible;
     }
 
     private void SetDepFromFind_Click(object sender, RoutedEventArgs e)
@@ -191,7 +192,17 @@ public partial class MainWindow : Window
         if (_foundAirport == null) return;
         ViewModel.SetDeparture(_foundAirport.Ident, _foundAirport.Lat, _foundAirport.Lon);
         SetDepFromFindButton.Visibility = System.Windows.Visibility.Collapsed;
+        SetDestFromFindButton.Visibility = System.Windows.Visibility.Collapsed;
         AirportResultLabel.Text = $"{_foundAirport.Ident} set as departure";
+    }
+
+    private void SetDestFromFind_Click(object sender, RoutedEventArgs e)
+    {
+        if (_foundAirport == null) return;
+        ViewModel.SetDestination(_foundAirport.Ident, _foundAirport.Lat, _foundAirport.Lon);
+        SetDepFromFindButton.Visibility = System.Windows.Visibility.Collapsed;
+        SetDestFromFindButton.Visibility = System.Windows.Visibility.Collapsed;
+        AirportResultLabel.Text = $"{_foundAirport.Ident} set as destination";
     }
 
     private void DepAirportButton_Click(object sender, RoutedEventArgs e)
@@ -199,12 +210,27 @@ public partial class MainWindow : Window
         var current = ViewModel.Waypoints.FirstOrDefault(w => w.IsFixed);
         var dlg = new Views.DepartureDialog(
             current?.Name      ?? "EHTE",
-            current?.Latitude  ?? 51.995833,
-            current?.Longitude ?? 6.840556)
+            current?.Latitude  ?? 52.244722,
+            current?.Longitude ?? 6.046667,
+            "Set Departure Airport")
         { Owner = this };
 
         if (dlg.ShowDialog() != true) return;
         ViewModel.SetDeparture(dlg.AirportName, dlg.Latitude, dlg.Longitude);
+    }
+
+    private void DestAirportButton_Click(object sender, RoutedEventArgs e)
+    {
+        var current = ViewModel.Waypoints.FirstOrDefault(w => w.IsDestination);
+        var dlg = new Views.DepartureDialog(
+            current?.Name      ?? "",
+            current?.Latitude  ?? 52.1,
+            current?.Longitude ?? 5.3,
+            "Set Destination Airport")
+        { Owner = this };
+
+        if (dlg.ShowDialog() != true) return;
+        ViewModel.SetDestination(dlg.AirportName, dlg.Latitude, dlg.Longitude);
     }
 
     private void OpenButton_Click(object sender, RoutedEventArgs e)
@@ -244,7 +270,7 @@ public partial class MainWindow : Window
         if (mapInfo?.Feature == null) return;
 
         var wp = mapInfo.Feature["WaypointRef"] as Waypoint;
-        if (wp == null || wp.IsFixed) return;
+        if (wp == null || wp.IsFixed || wp.IsDestination) return;
 
         var result = MessageBox.Show(
             $"Remove waypoint \"{wp.Name}\"?",
@@ -269,7 +295,9 @@ public partial class MainWindow : Window
 
             var fillColor = wp.IsFixed
                 ? new Mapsui.Styles.Color(0, 120, 212)
-                : new Mapsui.Styles.Color(220, 60, 60);
+                : wp.IsDestination
+                    ? new Mapsui.Styles.Color(40, 160, 70)
+                    : new Mapsui.Styles.Color(220, 60, 60);
 
             feature.Styles.Add(new SymbolStyle
             {

@@ -14,12 +14,12 @@ namespace NavigationPlan.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     // Aircraft info
-    [ObservableProperty] private string registration = string.Empty;
-    [ObservableProperty] private string aircraftType = string.Empty;
-    [ObservableProperty] private string pilot = string.Empty;
+    [ObservableProperty] private string registration = "PH-RGJ";
+    [ObservableProperty] private string aircraftType = "Sonaca";
+    [ObservableProperty] private string pilot = "R. de Groot";
 
     // Flight info
-    [ObservableProperty] private string from = "EDLS";
+    [ObservableProperty] private string from = "EHTE";
     [ObservableProperty] private string to = string.Empty;
     [ObservableProperty] private string alternate = string.Empty;
     [ObservableProperty] private string departureTime = "10:00";
@@ -30,12 +30,16 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string qnh = "1013";
 
     // Performance
-    [ObservableProperty] private string tas = "100";
-    [ObservableProperty] private string level = "1000";
+    [ObservableProperty] private string tas = "90";
+    [ObservableProperty] private string level = "1500";
     [ObservableProperty] private string magneticVariation = "2.5";
+    [ObservableProperty] private string deviation = "0";
 
     public ObservableCollection<Waypoint> Waypoints { get; } = new();
     public ObservableCollection<NavLeg> NavLegs { get; } = new();
+
+    [ObservableProperty] private double totalDistanceNm;
+    [ObservableProperty] private int totalTimeMin;
 
     // Notes loaded from file; applied on next Calculate() then cleared
     private Dictionary<string, (string Frequency, string Ata, string Remarks)> _pendingNotes = new();
@@ -44,30 +48,44 @@ public partial class MainViewModel : ObservableObject
     {
         Waypoints.Add(new Waypoint
         {
-            Name = "EDLS",
-            Latitude = 51.995833,
-            Longitude = 6.840556,
+            Name = "EHTE",
+            Latitude = 52.244722,
+            Longitude = 6.046667,
             IsFixed = true,
             Index = 1
         });
+
+        NavLegs.CollectionChanged += (_, _) => UpdateTotals();
+    }
+
+    private void UpdateTotals()
+    {
+        TotalDistanceNm = NavLegs.Sum(l => l.DistanceNm);
+        TotalTimeMin = NavLegs.Sum(l => l.TimeMin);
     }
 
     public void AddWaypoint(double lat, double lon, string name)
     {
-        Waypoints.Add(new Waypoint
-        {
-            Name = name,
-            Latitude = lat,
-            Longitude = lon,
-            IsFixed = false,
-            Index = Waypoints.Count + 1
-        });
+        var newWp = new Waypoint { Name = name, Latitude = lat, Longitude = lon, IsFixed = false };
+
+        var destination = Waypoints.FirstOrDefault(w => w.IsDestination);
+        if (destination != null)
+            Waypoints.Insert(Waypoints.IndexOf(destination), newWp);
+        else
+            Waypoints.Add(newWp);
+
+        ReindexWaypoints();
     }
 
     public void RemoveWaypoint(Waypoint wp)
     {
-        if (wp.IsFixed) return;
+        if (wp.IsFixed || wp.IsDestination) return;
         Waypoints.Remove(wp);
+        ReindexWaypoints();
+    }
+
+    private void ReindexWaypoints()
+    {
         for (int i = 0; i < Waypoints.Count; i++)
             Waypoints[i].Index = i + 1;
     }
@@ -75,15 +93,27 @@ public partial class MainViewModel : ObservableObject
     public void SetDeparture(string name, double lat, double lon)
     {
         var existing = Waypoints.FirstOrDefault(w => w.IsFixed);
-        var newWp = new Waypoint { Name = name, Latitude = lat, Longitude = lon, IsFixed = true, Index = 1 };
+        var newWp = new Waypoint { Name = name, Latitude = lat, Longitude = lon, IsFixed = true };
         if (existing != null)
             Waypoints[Waypoints.IndexOf(existing)] = newWp;
         else
-        {
             Waypoints.Insert(0, newWp);
-            for (int i = 0; i < Waypoints.Count; i++) Waypoints[i].Index = i + 1;
-        }
+
+        ReindexWaypoints();
         From = name;
+    }
+
+    public void SetDestination(string name, double lat, double lon)
+    {
+        var existing = Waypoints.FirstOrDefault(w => w.IsDestination);
+        var newWp = new Waypoint { Name = name, Latitude = lat, Longitude = lon, IsDestination = true };
+        if (existing != null)
+            Waypoints[Waypoints.IndexOf(existing)] = newWp;
+        else
+            Waypoints.Add(newWp);
+
+        ReindexWaypoints();
+        To = name;
     }
 
     // Called from code-behind after Open loads waypoints (map will auto-refresh via CollectionChanged)
@@ -125,24 +155,28 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Clear()
     {
-        Registration = string.Empty;
-        AircraftType = string.Empty;
-        Pilot = string.Empty;
+        Registration = "PH-RGJ";
+        AircraftType = "Sonaca";
+        Pilot = "R. de Groot";
         From = Waypoints.FirstOrDefault(w => w.IsFixed)?.Name ?? string.Empty;
-        To = string.Empty;
+        To = Waypoints.FirstOrDefault(w => w.IsDestination)?.Name ?? string.Empty;
         Alternate = string.Empty;
         DepartureTime = "10:00";
         WindDirection = "270";
         WindSpeed = "15";
         Qnh = "1013";
-        Tas = "100";
-        Level = "1000";
+        Tas = "90";
+        Level = "1500";
         MagneticVariation = "2.5";
+        Deviation = "0";
 
         NavLegs.Clear();
         var fixed1 = Waypoints.FirstOrDefault(w => w.IsFixed);
+        var destWp = Waypoints.FirstOrDefault(w => w.IsDestination);
         Waypoints.Clear();
         if (fixed1 != null) Waypoints.Add(fixed1);
+        if (destWp != null) Waypoints.Add(destWp);
+        ReindexWaypoints();
     }
 
     public void PrintWithMap(System.Windows.Media.Imaging.BitmapSource? mapImage)
@@ -186,13 +220,17 @@ public partial class MainViewModel : ObservableObject
         sb.AppendLine($"  TAS      : {Tas} kt");
         sb.AppendLine($"  Level    : {Level} ft");
         sb.AppendLine($"  Mag.Var  : {MagneticVariation}°E");
+        sb.AppendLine($"  Deviation: {Deviation}°E");
         sb.AppendLine("=================================================================");
         sb.AppendLine();
 
         // Waypoints section — needed for reopening
         sb.AppendLine("[WAYPOINTS]");
         foreach (var wp in Waypoints)
-            sb.AppendLine($"{wp.Name}|{wp.Latitude.ToString("F6", CultureInfo.InvariantCulture)}|{wp.Longitude.ToString("F6", CultureInfo.InvariantCulture)}|{(wp.IsFixed ? "fixed" : "")}");
+        {
+            string flag = wp.IsFixed ? "fixed" : wp.IsDestination ? "destination" : "";
+            sb.AppendLine($"{wp.Name}|{wp.Latitude.ToString("F6", CultureInfo.InvariantCulture)}|{wp.Longitude.ToString("F6", CultureInfo.InvariantCulture)}|{flag}");
+        }
         sb.AppendLine("[/WAYPOINTS]");
         sb.AppendLine();
 
@@ -204,7 +242,7 @@ public partial class MainViewModel : ObservableObject
         sb.AppendLine();
 
         // Nav plan table
-        sb.AppendLine($"{"Waypoint",-14} {"Freq",8} {"Lvl",5} {"TAS",4} {"TT",4} {"TH",4} {"WCA",4} {"MH",4} {"GS",4} {"Dist",6} {"Time",5} {"ETA",5} {"ATA",5}  Remarks");
+        sb.AppendLine($"{"Waypoint",-14} {"Freq",8} {"Lvl",5} {"TAS",4} {"TT",4} {"WCA",4} {"TH",4} {"VAR",4} {"MH",4} {"DEV",4} {"CH",4} {"GS",4} {"Dist",6} {"Time",5} {"ETA",5} {"ATA",5}  Remarks");
         sb.AppendLine(new string('-', 104));
 
         foreach (var leg in NavLegs)
@@ -212,12 +250,15 @@ public partial class MainViewModel : ObservableObject
             int idx = NavLegs.IndexOf(leg);
             string tt   = idx > 0 ? leg.TrueTrack.ToString("000")        : "---";
             string th   = idx > 0 ? leg.TrueHeading.ToString("000")      : "---";
+            string var_ = idx > 0 ? leg.Variation                        : "---";
             string mh   = idx > 0 ? leg.MagneticHeading.ToString("000")  : "---";
+            string dev  = idx > 0 ? leg.Deviation                        : "---";
+            string ch   = idx > 0 ? leg.CompassHeading.ToString("000")   : "---";
             string wca  = idx > 0 ? leg.Wca                              : "---";
             string dist = idx > 0 ? leg.DistanceNm.ToString("F1")        : "---";
             string time = idx > 0 ? leg.TimeMin.ToString()               : "---";
 
-            sb.AppendLine($"{leg.WaypointName,-14} {leg.Frequency,8} {leg.Level,5} {leg.Tas,4} {tt,4} {th,4} {wca,4} {mh,4} {leg.GroundSpeed,4} {dist,6} {time,5} {leg.Eta,5} {leg.Ata,5}  {leg.Remarks}");
+            sb.AppendLine($"{leg.WaypointName,-14} {leg.Frequency,8} {leg.Level,5} {leg.Tas,4} {tt,4} {wca,4} {th,4} {var_,4} {mh,4} {dev,4} {ch,4} {leg.GroundSpeed,4} {dist,6} {time,5} {leg.Eta,5} {leg.Ata,5}  {leg.Remarks}");
         }
 
         sb.AppendLine(new string('-', 104));
@@ -256,6 +297,8 @@ public partial class MainViewModel : ObservableObject
         Tas               = Val("TAS      :").Replace(" kt", "");
         Level             = Val("Level    :").Replace(" ft", "");
         MagneticVariation = Val("Mag.Var  :").Replace("°E", "");
+        var devVal = Val("Deviation:").Replace("°E", "");
+        Deviation = string.IsNullOrWhiteSpace(devVal) ? "0" : devVal;
 
         var windRaw = Val("Wind     :"); // "270° / 15 kt"
         var windParts = windRaw.Replace("°", "").Replace("kt", "").Split('/');
@@ -286,6 +329,7 @@ public partial class MainViewModel : ObservableObject
                 Latitude = lat,
                 Longitude = lon,
                 IsFixed = parts.Length > 3 && parts[3] == "fixed",
+                IsDestination = parts.Length > 3 && parts[3] == "destination",
                 Index = idx++
             });
         }
@@ -320,7 +364,7 @@ public partial class MainViewModel : ObservableObject
         var type = string.IsNullOrWhiteSpace(AircraftType) ? "[TYPE]"     : AircraftType;
         var from = From.ToUpper();
         var to   = string.IsNullOrWhiteSpace(To) ? "[DEST]" : To.ToUpper();
-        var legs = NavLegs.ToList();
+        var legs = NavLegs.Where(l => !l.IsBuffer).ToList();
 
         var depFrq = legs.Count > 0 && !string.IsNullOrWhiteSpace(legs[0].Frequency)
             ? legs[0].Frequency : "[DEP FREQ]";
@@ -465,6 +509,12 @@ public partial class MainViewModel : ObservableObject
             MessageBox.Show("Magnetic variation must be a number.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
+        if (!double.TryParse(Deviation, NumberStyles.Float,
+                CultureInfo.InvariantCulture, out double devVal))
+        {
+            MessageBox.Show("Deviation must be a number.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
         if (!TimeOnly.TryParse(DepartureTime, out var depTime))
         {
             MessageBox.Show("Departure time must be in HH:mm format.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -484,6 +534,7 @@ public partial class MainViewModel : ObservableObject
         plan.TAS = tasVal;
         plan.Level = Level;
         plan.MagneticVariation = varVal;
+        plan.Deviation = devVal;
 
         if (Waypoints.Count < 2)
         {

@@ -18,8 +18,8 @@ NavigationPlan/
 └── NavigationPlan/
     ├── NavigationPlan.ico       # App icon (compass rose + airplane, multi-size)
     ├── Models/
-    │   ├── Waypoint.cs          # lat/lon, name, IsFixed, Index
-    │   ├── NavLeg.cs            # one row in the nav plan table (ObservableObject)
+    │   ├── Waypoint.cs          # lat/lon, name, IsFixed (departure), IsDestination, Index
+    │   ├── NavLeg.cs            # one row in the nav plan table (ObservableObject); IsBuffer flags synthetic rows
     │   └── FlightPlan.cs        # aircraft + flight + wind + QNH data container
     ├── Services/
     │   ├── NavigationCalculator.cs   # all aviation math (static, pure)
@@ -47,18 +47,30 @@ NavigationPlan/
 - **Bottom panel** (250 px, full width): `DataGrid` with nav plan legs
 
 ## Nav Plan Table Columns
-`Waypoint | Freq | Level | TAS | TT | TH | WCA | MH | GS | Dist | Time | ETA | ATA | Remarks`
+`Waypoint | Freq | Level | TAS | TT | WCA | TH | VAR | MH | DEV | CH | GS | Dist | Time | ETA | ATA | Remarks`
 
 - **Freq** — radio frequency per waypoint (editable)
+- **VAR** — magnetic variation applied to that leg (from Aircraft Performance input, default 2.5°E; positive = East)
+- **DEV** — compass deviation applied to that leg (from Aircraft Performance input, default 0°; positive = East)
+- **CH** (Compass Heading) — `MH − Deviation`; the heading the pilot actually flies. With the default 0° deviation, CH = MH
 - **ATA** and **Remarks** are user-editable in-flight
 - Freq, ATA, Remarks are preserved across Calculate and saved/restored via `[NOTES]` section in the `.txt` file
+
+### Buffer rows
+
+`NavigationCalculator.Calculate` always inserts two synthetic 5-minute rows (no distance/heading of their own, `NavLeg.IsBuffer = true`) as soon as there are ≥2 waypoints:
+
+- **"First Waypoint"** — right after the departure row; accounts for climb-out/orientation time before tracking the first leg
+- **"Entering Circuit"** — right before the final (destination) row; accounts for circuit-joining time before landing
+
+Both simply add 5 minutes to the running `cumulativeMinutes`, pushing every subsequent ETA back. `MainViewModel.BuildRtCalls` filters out `IsBuffer` rows (`NavLegs.Where(l => !l.IsBuffer)`) since they aren't real position-report waypoints.
 
 ## Key Calculations (`NavigationCalculator.cs`)
 
 - **TT** (True Track): forward azimuth via `atan2`
 - **Dist**: Haversine in nautical miles
-- **WCA** (Wind Correction Angle): `asin(WS/TAS * sin(windTrack − TT))`
-- **GS** (Ground Speed): `TAS * cos(WCA) + WS * cos(angle)`
+- **WCA** (Wind Correction Angle): `asin(WS/TAS * sin(windDir − TT))`, where `windDir` is the direction the wind blows FROM
+- **GS** (Ground Speed): `TAS * cos(WCA) − WS * cos(windDir − TT)`
 - **TH** = TT + WCA, **MH** = TH − magnetic variation
 - **Time**: `(Dist / GS) * 60` rounded to whole minutes
 - **ETA**: departure time + cumulative leg times (`TimeOnly.AddMinutes`)
@@ -67,20 +79,31 @@ NavigationPlan/
 ## Map Interaction (`MainWindow.xaml.cs`)
 
 - Default view: Netherlands bounding box (zoomed on first `SizeChanged`)
-- Departure pin is fixed (blue, cannot be removed); default is **EDLS** Stadtlohn-Vreden Airport (ARP N51°59′45″ E006°50′26″)
-- **Left-click** empty map → `InputDialog` → adds numbered waypoint pin (red)
-- **Right-click** pin → confirm → removes waypoint (departure pin protected)
+- Departure pin is fixed (blue, cannot be removed); default is **EHTE** Teuge Airport (ARP N52°14′41″ E006°02′48″)
+- Destination pin is fixed (green, cannot be removed) once set; not present by default — set via Find → Set as Dest. or Dest. Airport… button
+- **Left-click** empty map → `InputDialog` → adds numbered waypoint pin (red), inserted just before the destination pin if one exists
+- **Right-click** pin → confirm → removes waypoint (departure and destination pins protected)
 - Route drawn as blue polyline via `GeometryFeature` + `VectorStyle`
-- **Find airport** search bar — type ICAO, press Enter → map zooms to airport; "Set as Dep." button sets found airport as fixed departure
+- **Find airport** search bar — type ICAO, press Enter → map zooms to airport; "Set as Dep." / "Set as Dest." buttons set it as the fixed departure/destination
 - **Map type** ComboBox — Street (OpenStreetMap) or Satellite (ESRI World Imagery via `ArcGisTileSource`)
-- **Dep. Airport…** button → `DepartureDialog` to manually set departure name + coordinates
+- **Dep. Airport…** / **Dest. Airport…** buttons → `DepartureDialog` (shared, parameterized `title`) to manually set name + coordinates
 
-## Departure Airport
+## Departure & Destination Airports
 
-- Default: **EDLS** (Stadtlohn-Vreden, Germany) at 51.995833°N, 6.840556°E
-- Changeable at runtime via: Find → Set as Dep., or Dep. Airport… button (manual lat/lon entry)
-- `MainViewModel.SetDeparture(name, lat, lon)` replaces the fixed waypoint in `Waypoints[0]`; `From` field syncs automatically
-- Clear command preserves the current departure airport
+- Departure default: **EHTE** (Teuge, Netherlands) at 52.244722°N, 6.046667°E
+- Destination has no default; must be set explicitly so the nav plan always ends on a real airport instead of the last clicked pin
+- Changeable at runtime via: Find → Set as Dep./Set as Dest., or the Dep./Dest. Airport… buttons (manual lat/lon entry)
+- `MainViewModel.SetDeparture(name, lat, lon)` replaces `Waypoints[0]` (`IsFixed`); `SetDestination(name, lat, lon)` replaces/appends the `IsDestination` waypoint, always kept last via `AddWaypoint` inserting new pins before it; `From`/`To` sync automatically
+- Clear command preserves both the current departure and destination airports
+
+## Default Form Values (`MainViewModel.cs`)
+
+Pre-filled on startup and restored by the **Clear** command:
+
+- Reg: **PH-RGJ**, Type: **Sonaca**, Pilot: **R. de Groot**
+- From: **EHTE**, Dep. Time: **10:00**
+- Wind: **270°/15 kt**, QNH: **1013 hPa**
+- TAS: **90 kt**, Level: **1500 ft**, Var: **2.5°E**, Dev: **0°**
 
 ## Airport Lookup (`AirportLookupService.cs`)
 
@@ -91,7 +114,7 @@ NavigationPlan/
 
 ## Save / Open
 
-- **Save .txt**: saves form fields, waypoints (with coordinates, `fixed` flag), `[NOTES]` section (Freq/ATA/Remarks per waypoint), and the full nav plan table
+- **Save .txt**: saves form fields, waypoints (with coordinates, `fixed`/`destination`/plain flag), `[NOTES]` section (Freq/ATA/Remarks per waypoint), and the full nav plan table
 - **Open…**: parses a saved `.txt` and restores all fields + waypoints + notes on the map
 - Notes are stored in `_pendingNotes` (dict populated by `Open()`, consumed by `Calculate()`)
 - Saved files (`NavPlan_*.txt`) are excluded from git via `.gitignore`

@@ -41,14 +41,13 @@ public static class NavigationCalculator
     public static (double WCA, double GS) WindCorrection(
         double tt, double tas, double windDir, double windSpeed)
     {
-        double windTrack = Normalize360(windDir + 180.0);
-        double angleRad = Rad(Normalize360(windTrack - tt));
+        double angleRad = Rad(Normalize360(windDir - tt));
 
         double sinArg = Math.Clamp((windSpeed / tas) * Math.Sin(angleRad), -1.0, 1.0);
         double wcaRad = Math.Asin(sinArg);
         double wca = Deg(wcaRad);
 
-        double gs = tas * Math.Cos(wcaRad) + windSpeed * Math.Cos(angleRad);
+        double gs = tas * Math.Cos(wcaRad) - windSpeed * Math.Cos(angleRad);
         if (gs < 1.0) gs = 1.0;
 
         return (wca, gs);
@@ -81,9 +80,17 @@ public static class NavigationCalculator
                 leg.TrueTrack = 0;
                 leg.TrueHeading = 0;
                 leg.MagneticHeading = 0;
+                leg.CompassHeading = 0;
                 leg.GroundSpeed = plan.TAS;
                 leg.Wca = string.Empty;
                 leg.Eta = plan.DepartureTime.ToString("HH:mm");
+                legs.Add(leg);
+
+                // Buffer: time to get airborne, oriented, and find the first waypoint
+                if (waypoints.Count > 1)
+                    legs.Add(BufferLeg("First Waypoint", plan, ref cumulativeMinutes));
+
+                continue;
             }
             else
             {
@@ -94,7 +101,12 @@ public static class NavigationCalculator
 
                 double th = Normalize360(tt + wca);
                 double mh = Normalize360(th - plan.MagneticVariation);
+                double ch = Normalize360(mh - plan.Deviation);
                 int timeMin = (int)Math.Round((dist / gs) * 60.0);
+
+                // Buffer: time to enter the circuit before the destination row
+                if (i == waypoints.Count - 1)
+                    legs.Add(BufferLeg("Entering Circuit", plan, ref cumulativeMinutes));
 
                 cumulativeMinutes += timeMin;
                 var eta = plan.DepartureTime.AddMinutes(cumulativeMinutes);
@@ -103,10 +115,19 @@ public static class NavigationCalculator
                 leg.TrueTrack = (int)Math.Round(tt);
                 leg.TrueHeading = (int)Math.Round(th);
                 leg.MagneticHeading = (int)Math.Round(mh);
+                leg.CompassHeading = (int)Math.Round(ch);
                 leg.GroundSpeed = (int)Math.Round(gs);
                 leg.DistanceNm = Math.Round(dist, 1);
                 leg.TimeMin = timeMin;
                 leg.Wca = wcaDeg >= 0 ? $"+{wcaDeg}" : $"{wcaDeg}";
+                leg.Variation = plan.MagneticVariation >= 0
+                    ? $"{plan.MagneticVariation:0.#}E"
+                    : $"{Math.Abs(plan.MagneticVariation):0.#}W";
+                leg.Deviation = plan.Deviation == 0
+                    ? "0"
+                    : plan.Deviation > 0
+                        ? $"{plan.Deviation:0.#}E"
+                        : $"{Math.Abs(plan.Deviation):0.#}W";
                 leg.Eta = eta.ToString("HH:mm");
 
                 if (gs <= 1.0)
@@ -117,5 +138,25 @@ public static class NavigationCalculator
         }
 
         return legs;
+    }
+
+    private static NavLeg BufferLeg(string name, FlightPlan plan, ref double cumulativeMinutes)
+    {
+        const int minutes = 5;
+        cumulativeMinutes += minutes;
+        var eta = plan.DepartureTime.AddMinutes(cumulativeMinutes);
+
+        return new NavLeg
+        {
+            WaypointName = name,
+            Level = plan.Level,
+            Tas = plan.TAS,
+            TimeMin = minutes,
+            Eta = eta.ToString("HH:mm"),
+            Wca = string.Empty,
+            Ata = string.Empty,
+            Remarks = string.Empty,
+            IsBuffer = true,
+        };
     }
 }
