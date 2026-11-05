@@ -271,7 +271,27 @@
                           ResizeBehavior="PreviousAndNext"/>
 
             <!-- Map -->
-            <mapsui:MapControl x:Name="MapControl" Grid.Column="2"/>
+            <Grid Grid.Column="2">
+                <mapsui:MapControl x:Name="MapControl"/>
+                <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
+                    <Button Content="+" Width="36" Height="36" FontSize="20" FontWeight="Bold"
+                            Margin="0,0,0,4" ToolTip="Zoom in" Click="ZoomIn_Click"/>
+                    <Button Content="−" Width="36" Height="36" FontSize="20" FontWeight="Bold"
+                            ToolTip="Zoom out" Click="ZoomOut_Click"/>
+                    <Grid Margin="0,12,0,0" Width="108" Height="72" HorizontalAlignment="Left">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/><ColumnDefinition/><ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <Button Grid.Row="0" Grid.Column="1" Content="▲" Margin="1" ToolTip="Pan north" Click="PanUp_Click"/>
+                        <Button Grid.Row="1" Grid.Column="0" Content="◀" Margin="1" ToolTip="Pan west" Click="PanLeft_Click"/>
+                        <Button Grid.Row="1" Grid.Column="1" Content="▼" Margin="1" ToolTip="Pan south" Click="PanDown_Click"/>
+                        <Button Grid.Row="1" Grid.Column="2" Content="▶" Margin="1" ToolTip="Pan east" Click="PanRight_Click"/>
+                    </Grid>
+                </StackPanel>
+            </Grid>
 
         </Grid>
     </DockPanel>

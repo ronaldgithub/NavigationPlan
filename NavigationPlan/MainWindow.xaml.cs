@@ -76,6 +76,24 @@ public partial class MainWindow : Window
         _baseTileLayer = newLayer;
     }
 
+    private void ZoomIn_Click(object sender, RoutedEventArgs e)  => MapControl.Map.Navigator.ZoomIn(300);
+    private void ZoomOut_Click(object sender, RoutedEventArgs e) => MapControl.Map.Navigator.ZoomOut(300);
+
+    private void PanUp_Click(object sender, RoutedEventArgs e)    => PanMap(0, 1);
+    private void PanDown_Click(object sender, RoutedEventArgs e)  => PanMap(0, -1);
+    private void PanLeft_Click(object sender, RoutedEventArgs e)  => PanMap(-1, 0);
+    private void PanRight_Click(object sender, RoutedEventArgs e) => PanMap(1, 0);
+
+    // Pans by 25% of the visible map size; dx/dy are in map axes (north = +y, east = +x)
+    private void PanMap(int dx, int dy)
+    {
+        var nav = MapControl.Map.Navigator;
+        var vp  = nav.Viewport;
+        var step = 0.25 * vp.Resolution;
+        nav.CenterOn(new MPoint(vp.CenterX + dx * step * vp.Width,
+                                vp.CenterY + dy * step * vp.Height), 300);
+    }
+
     private static void ZoomToNetherlands(Mapsui.Navigator n)
     {
         var sw = SphericalMercator.FromLonLat(2.8, 50.4);
